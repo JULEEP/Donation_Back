@@ -21,9 +21,8 @@ const donationSchema = new mongoose.Schema({
   amount: {
     type: String,
     enum: [
-      '50', '2', '1', '100', '200', '500', '1000', '1500', '2000', '2500', '3000', '5000', '7000', '10000', '15000', '20000', 'other'
+      '50', '2', '1', '10', '20', '100', '200', '500', 
     ], // Predefined amounts plus 'other' option for custom amounts
-    message: 'Amount must be one of the predefined values: 50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 5000, 7000, 10000, 15000, 20000, or "other"',
   },
   customAmount: {
     type: Number,
@@ -71,6 +70,12 @@ const donationSchema = new mongoose.Schema({
   amount: { type: Number },
   status: { type: String},
   upiId: { type: String},  // Optional field to store UPI ID
+  upiLink: {
+    type: String,
+  },
+  qrCodeUrl: {
+    type: String,
+  },
 
 });
 

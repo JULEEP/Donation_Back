@@ -1,6 +1,6 @@
 import express from 'express'
 import Donation from '../Model/Donate.js'
-import {generateReceiptPDF} from '../Helper/generateReceiptPDF.js'
+import { generateReceiptPDF } from '../Helper/generateReceiptPDF.js'
 import QRCode from 'qrcode';  // Make sure qrcode package is installed
 import axios from 'axios';
 import dotenv from 'dotenv';  // Import dotenv package
@@ -17,12 +17,34 @@ const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
 
 export const createDonation = async (req, res) => {
   try {
-    const { amount } = req.body;  // Amount entered by the user in INR
+    let { amount, donorName } = req.body;  // Amount entered by the user and the donor's name
 
-    // Validate the donation amount
-    if (amount < 0.50) {
+    // If amount is 'other', validate and use the custom amount passed in the request body
+    if (amount === 'other') {
+      const { customAmount } = req.body;  // Custom amount for 'other' option
+
+      // Validate custom amount (ensure it’s a number and meets the minimum threshold of ₹0.50)
+      if (isNaN(customAmount) || parseFloat(customAmount) < 0.50) {
+        return res.status(400).send({
+          error: 'The custom donation amount must be a valid number and at least ₹0.50'
+        });
+      }
+
+      amount = customAmount.toString();  // Use the custom amount as the final amount
+    } else {
+      // Validate if the amount is part of the predefined options
+      const validAmounts = ['50', '2', '1', '10', '20', '100', '200', '500'];
+      if (!validAmounts.includes(amount)) {
+        return res.status(400).send({
+          error: 'Invalid donation amount'
+        });
+      }
+    }
+
+    // Validate donor's name (optional, can be customized as needed)
+    if (!donorName || donorName.trim().length === 0) {
       return res.status(400).send({
-        error: 'The donation amount must be at least ₹0.50'
+        error: 'Donor name is required'
       });
     }
 
@@ -38,6 +60,7 @@ export const createDonation = async (req, res) => {
       // Save the donation in the database with initial status set to 'pending'
       const donation = new Donation({
         amount,
+        donorName,  // Save the donor's name
         upiLink,
         qrCodeUrl,  // Save the generated QR code URL
         status: 'pending',  // Initial status
@@ -46,12 +69,14 @@ export const createDonation = async (req, res) => {
       // Save the donation to the database
       await donation.save();
 
-      // Send the response to the frontend with the QR code and UPI link
+      // Send the response to the frontend with the QR code, UPI link, and donor name
       res.send({
         success: true,
+        donorName,        // Include donor name in the response
         qr_code: qrCodeUrl,  // Send the QR code as base64 image URL
         upiLink: upiLink,    // Send the UPI link
         donationId: donation._id,  // Send the donation ID for tracking
+        amount            // Send the validated amount in the response
       });
     });
   } catch (error) {
@@ -59,6 +84,7 @@ export const createDonation = async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 };
+
 // Function to create a Stripe payment link and save paymentIntentId
 const createStripePaymentLink = async (amount, currency = 'INR') => {
   try {
@@ -92,7 +118,7 @@ const createStripePaymentLink = async (amount, currency = 'INR') => {
     // Save donation to DB
     await donation.save();
     console.log(donation);
-    
+
 
     // Return the session URL and paymentIntentId
     return {
@@ -178,7 +204,7 @@ export const getDonations = async (req, res) => {
   try {
     // Retrieve donations with only the specified fields
     const donations = await Donation.find().select(
-      'amount status donorName donationDate paymentMethod donationType relation'
+      'amount status donorName donationDate paymentMethod'
     );
 
     // Map through donations to set missing fields as null
@@ -189,8 +215,6 @@ export const getDonations = async (req, res) => {
         donorName: donation.donorName || null,
         donationDate: donation.donationDate || null,
         paymentMethod: donation.paymentMethod || null,
-        donationType: donation.donationType || null,
-        relation: donation.relation || null,
         donationId: donation._id
       };
     });
@@ -407,38 +431,52 @@ export const generateInvoice = async (req, res) => {
     const borderX = 30, borderY = 30, borderWidth = 550, borderHeight = 750;
     pdfDoc.rect(borderX, borderY, borderWidth, borderHeight).stroke();
 
-    // Add Header
-    pdfDoc.fontSize(16).text('श्री गोपाळ गणपती देवस्थान ट्रस्ट', 50, 100);
-    pdfDoc.fontSize(14).text('फर्मागुडी बांदिवडे फोंडा - गोवा', 50, 120);
-    pdfDoc.fontSize(12).text('Reg. No. PON-4-10-2020', 50, 140);
-    pdfDoc.fontSize(12).text('Seva Receipt', 50, 160);
+    // Top-right date
+    const currentDate = new Date().toLocaleDateString();
+    pdfDoc.fontSize(10).text(`Date: ${currentDate}`, 450, 50); // Top-right corner
+    pdfDoc.fontSize(10).text('Reg. No. PON-4-10-2020', 500, 70);
+
+    // Header Section
+    pdfDoc.fontSize(16).text('श्री गोपाळ गणपती देवस्थान ट्रस्ट', 150, 100);
+    pdfDoc.fontSize(14).text('फर्मागुडी बांदिवडे फोंडा - गोवा', 200, 120);
+    pdfDoc.fontSize(12).text('Seva Receipt', 250, 160);  // Adjust the Y-coordinate for the text
+
+    // Draw blue line under the header with added space
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 180).lineTo(580, 180).stroke();  // Adjusted Y-coordinate for the line
 
     pdfDoc.moveDown(2);
 
-    // Receipt Info
-    pdfDoc.text(`Receipt Number: ${donation.donorID}`, 400, 200);
-    pdfDoc.text(`Date: ${new Date(donation.donationDate).toLocaleDateString()}`, 400, 220);
+    // Donor and Donation Information in columns with added space
+    pdfDoc.fontSize(12).text(`Donor: ${donation.donorName}`, 50, 200);
+    pdfDoc.text(`Amount: ₹${donation.amount}`, 50, 220);
+    pdfDoc.text(`Donation Date: ${new Date(donation.donationDate).toLocaleDateString()}`, 50, 240);
+
+    // Add a blue line after the donation details with space
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 270).lineTo(580, 270).stroke();  // Adjusted the Y-coordinate for the line
+
 
     pdfDoc.moveDown(2);
-
-    // Donor Info
-    pdfDoc.text(`Donor: Shri. ${donation.donorName}`, 50, 250);
-    pdfDoc.text(`Message: ${donation.message || 'No message'}`, 50, 270);
-
-    pdfDoc.moveDown(2);
-
     // Table Header
-    pdfDoc.fontSize(12).text('S.No', 50, 300);
-    pdfDoc.text('Spouse', 150, 300);
-    pdfDoc.text('Amount', 250, 300);
-    pdfDoc.lineWidth(0.5).moveTo(50, 310).lineTo(400, 310).stroke();
+    pdfDoc.fontSize(12).text('S.No', 50, 280);
+    pdfDoc.text('Spouse', 150, 280);
+    pdfDoc.text('Amount', 250, 280);
 
-    // Table Row
+    // Draw the blue line below the header
+
+    // Add space below the header and line
+    pdfDoc.moveDown(1); // Adds some vertical space between the line and the table rows
+
+    // Table Row (example)
     pdfDoc.text('1', 50, 320);
     pdfDoc.text(`Smt. ${donation.spouseName}`, 150, 320);
     pdfDoc.text(`₹${donation.amount}`, 250, 320);
 
-    pdfDoc.moveDown(2);
+    // Draw a blue line after the row
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 340).lineTo(580, 340).stroke();  // Line below row
+
+
+    // Optionally, add more rows or adjust the positioning of the rows if needed.
+    pdfDoc.moveDown(2); // Adds vertical space after the first row if more content follows
 
     // Amount in Words
     pdfDoc.text(`Amount in Words: ${donation.amountInWords}`, 50, 350);
@@ -452,13 +490,21 @@ export const generateInvoice = async (req, res) => {
     pdfDoc.text('Payment Method:', 50, 420);
     pdfDoc.text(donation.paymentMethod, 150, 420);
 
+    // Donation Date
     pdfDoc.text('Date:', 250, 420);
     pdfDoc.text(new Date(donation.donationDate).toLocaleDateString(), 300, 420);
+
+    // Draw the blue line below the Date and Donation Date
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 440).lineTo(580, 440).stroke();  // Line below the Date section
+
+
 
     pdfDoc.moveDown(2);
 
     // Final Message
     pdfDoc.fontSize(10).text('Thank you for your generous contribution!', { align: 'center' });
+
+    // Final blue line at the bottom of the PDF
 
     pdfDoc.end();
   } catch (error) {
@@ -466,7 +512,6 @@ export const generateInvoice = async (req, res) => {
     res.status(500).send({ error: 'Error generating receipt PDF.' });
   }
 };
-
 
 export const getDonationById = async (req, res) => {
   try {
