@@ -17,66 +17,71 @@ const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
 
 export const createDonation = async (req, res) => {
   try {
-    let { amount, donorName } = req.body;  // Amount entered by the user and the donor's name
+    let { amount, donorName } = req.body; // Extract amount and donorName from the request
 
-    // If amount is 'other', validate and use the custom amount passed in the request body
+    // Handle custom amount for 'other' option
     if (amount === 'other') {
-      const { customAmount } = req.body;  // Custom amount for 'other' option
+      const { customAmount } = req.body;
 
-      // Validate custom amount (ensure it’s a number and meets the minimum threshold of ₹0.50)
       if (isNaN(customAmount) || parseFloat(customAmount) < 0.50) {
         return res.status(400).send({
-          error: 'The custom donation amount must be a valid number and at least ₹0.50'
+          error: 'The custom donation amount must be a valid number and at least ₹0.50',
         });
       }
 
-      amount = customAmount.toString();  // Use the custom amount as the final amount
+      amount = customAmount.toString();
     } else {
-      // Validate if the amount is part of the predefined options
+      // Validate amount against predefined options
       const validAmounts = ['50', '2', '1', '10', '20', '100', '200', '500'];
       if (!validAmounts.includes(amount)) {
         return res.status(400).send({
-          error: 'Invalid donation amount'
+          error: 'Invalid donation amount',
         });
       }
     }
 
-    // Validate donor's name (optional, can be customized as needed)
+    // Validate donor name
     if (!donorName || donorName.trim().length === 0) {
       return res.status(400).send({
-        error: 'Donor name is required'
+        error: 'Donor name is required',
       });
     }
 
-    // Create a UPI payment link (example format)
-    const upiLink = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`;
+    // Generate UPI payment links
+    const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
+    const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
+      donorName
+    )}&am=${amount}&cu=INR&tn=Donation`;
+    const googlePayLink = `intent://${genericUPILink}#Intent;package=com.google.android.apps.nbu.paisa.user;scheme=upi;end;`;
+    const phonePeLink = `intent://${genericUPILink}#Intent;package=com.phonepe.app;scheme=upi;end;`;
 
-    // Generate the QR code for the UPI link
-    QRCode.toDataURL(upiLink, async (err, qrCodeUrl) => {
+    // Generate QR Code for the generic UPI link
+    QRCode.toDataURL(genericUPILink, async (err, qrCodeUrl) => {
       if (err) {
-        return res.status(500).send('Error generating UPI QR code');
+        return res.status(500).send({ error: 'Error generating UPI QR code' });
       }
 
-      // Save the donation in the database with initial status set to 'pending'
+      // Save the donation in the database
       const donation = new Donation({
         amount,
-        donorName,  // Save the donor's name
-        upiLink,
-        qrCodeUrl,  // Save the generated QR code URL
-        status: 'pending',  // Initial status
+        donorName,
+        upiLink: genericUPILink,
+        qrCodeUrl,
+        status: 'pending',
       });
 
-      // Save the donation to the database
       await donation.save();
 
-      // Send the response to the frontend with the QR code, UPI link, and donor name
+      // Respond to the frontend with necessary data
       res.send({
         success: true,
-        donorName,        // Include donor name in the response
-        qr_code: qrCodeUrl,  // Send the QR code as base64 image URL
-        upiLink: upiLink,    // Send the UPI link
-        donationId: donation._id,  // Send the donation ID for tracking
-        amount            // Send the validated amount in the response
+        donorName,
+        qr_code: qrCodeUrl, // Base64-encoded QR code
+        genericUPILink,     // Generic UPI payment link
+        googlePayLink,      // Google Pay-specific link
+        phonePeLink,        // PhonePe-specific link
+        donationId: donation._id,
+        amount,
       });
     });
   } catch (error) {
@@ -84,6 +89,7 @@ export const createDonation = async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 };
+
 
 // Function to create a Stripe payment link and save paymentIntentId
 const createStripePaymentLink = async (amount, currency = 'INR') => {
