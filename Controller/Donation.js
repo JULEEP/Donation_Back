@@ -42,12 +42,16 @@ export const createDonation = async (req, res) => {
       return res.status(400).send({ error: 'Donor name is required' });
     }
 
-    // Generate UPI link
+    // UPI ID of the receiver
     const upiId = '8263895919@okbizaxis';
-    const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(donorName)}&am=${amount}&cu=INR&tn=Donation+to+Trust`;
 
-    // Generate QR Code for the UPI link
-    QRCode.toDataURL(genericUPILink, async (err, qrCodeUrl) => {
+    // Generate the UPI link in the required format
+    const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
+      donorName
+    )}&am=${amount}&cu=INR&tn=Donation+to+Trust`;
+
+    // Generate a QR Code for the UPI link
+    QRCode.toDataURL(upiLink, async (err, qrCodeUrl) => {
       if (err) {
         return res.status(500).send({ error: 'Error generating UPI QR code' });
       }
@@ -56,7 +60,7 @@ export const createDonation = async (req, res) => {
       const donation = new Donation({
         amount,
         donorName,
-        upiLink: genericUPILink,
+        upiLink,
         qrCodeUrl,
         status: 'pending',
       });
@@ -68,8 +72,8 @@ export const createDonation = async (req, res) => {
         success: true,
         donorName,
         qr_code: qrCodeUrl, // Base64 encoded QR code
-        genericUPILink,     // UPI link for manual payment
-        upiId,              // UPI ID for manual entry
+        genericUPILink: upiLink, // UPI link for manual payment
+        upiId, // UPI ID for manual entry
         donationId: donation._id,
         amount,
       });
