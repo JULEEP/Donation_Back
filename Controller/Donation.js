@@ -17,51 +17,47 @@ const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
 
 export const createDonation = async (req, res) => {
   try {
-    let { amount, donorName } = req.body; // Extract amount and donorName from the request
+    let { amount, donorName } = req.body;
 
-    // Handle custom amount for 'other' option
+    // Handle custom amounts
     if (amount === 'other') {
       const { customAmount } = req.body;
-
       if (isNaN(customAmount) || parseFloat(customAmount) < 0.50) {
         return res.status(400).send({
           error: 'The custom donation amount must be a valid number and at least ₹0.50',
         });
       }
-
       amount = customAmount.toString();
     } else {
-      // Validate amount against predefined options
+      // Validate amount
       const validAmounts = ['50', '2', '1', '10', '20', '100', '200', '500'];
       if (!validAmounts.includes(amount)) {
-        return res.status(400).send({
-          error: 'Invalid donation amount',
-        });
+        return res.status(400).send({ error: 'Invalid donation amount' });
       }
     }
 
     // Validate donor name
     if (!donorName || donorName.trim().length === 0) {
-      return res.status(400).send({
-        error: 'Donor name is required',
-      });
+      return res.status(400).send({ error: 'Donor name is required' });
     }
 
     // Generate UPI payment links
-    const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
+    const upiId = 'juleeperween@ybl';
     const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
       donorName
     )}&am=${amount}&cu=INR&tn=Donation`;
-    const googlePayLink = `intent://${genericUPILink}#Intent;package=com.google.android.apps.nbu.paisa.user;scheme=upi;end;`;
-    const phonePeLink = `intent://${genericUPILink}#Intent;package=com.phonepe.app;scheme=upi;end;`;
+    const googlePayLink = genericUPILink; // Google Pay uses generic UPI links
+    const phonePeLink = `phonepe://upi/pay?pa=${upiId}&pn=${encodeURIComponent(
+      donorName
+    )}&am=${amount}&cu=INR&tn=Donation`;
 
-    // Generate QR Code for the generic UPI link
+    // Generate QR Code
     QRCode.toDataURL(genericUPILink, async (err, qrCodeUrl) => {
       if (err) {
         return res.status(500).send({ error: 'Error generating UPI QR code' });
       }
 
-      // Save the donation in the database
+      // Save donation to the database
       const donation = new Donation({
         amount,
         donorName,
@@ -72,14 +68,13 @@ export const createDonation = async (req, res) => {
 
       await donation.save();
 
-      // Respond to the frontend with necessary data
       res.send({
         success: true,
         donorName,
-        qr_code: qrCodeUrl, // Base64-encoded QR code
-        genericUPILink,     // Generic UPI payment link
-        googlePayLink,      // Google Pay-specific link
-        phonePeLink,        // PhonePe-specific link
+        qr_code: qrCodeUrl,
+        genericUPILink,
+        googlePayLink,
+        phonePeLink,
         donationId: donation._id,
         amount,
       });
