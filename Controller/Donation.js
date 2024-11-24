@@ -15,6 +15,7 @@ dotenv.config();  // Load environment variables
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);  // Load your Stripe Secret Key
 const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
 
+
 export const createDonation = async (req, res) => {
   try {
     let { amount, donorName } = req.body;
@@ -29,7 +30,7 @@ export const createDonation = async (req, res) => {
       }
       amount = customAmount.toString();
     } else {
-      // Validate amount
+      // Validate predefined donation amounts
       const validAmounts = ['50', '2', '1', '10', '20', '100', '200', '500'];
       if (!validAmounts.includes(amount)) {
         return res.status(400).send({ error: 'Invalid donation amount' });
@@ -41,23 +42,17 @@ export const createDonation = async (req, res) => {
       return res.status(400).send({ error: 'Donor name is required' });
     }
 
-    // Generate UPI payment links
+    // Generate UPI link
     const upiId = 'juleeperween@ybl';
-    const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
-      donorName
-    )}&am=${amount}&cu=INR&tn=Donation`;
-    const googlePayLink = genericUPILink; // Google Pay uses generic UPI links
-    const phonePeLink = `phonepe://upi/pay?pa=${upiId}&pn=${encodeURIComponent(
-      donorName
-    )}&am=${amount}&cu=INR&tn=Donation`;
+    const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(donorName)}&am=${amount}&cu=INR&tn=Donation+to+Trust`;
 
-    // Generate QR Code
+    // Generate QR Code for the UPI link
     QRCode.toDataURL(genericUPILink, async (err, qrCodeUrl) => {
       if (err) {
         return res.status(500).send({ error: 'Error generating UPI QR code' });
       }
 
-      // Save donation to the database
+      // Save donation details in the database
       const donation = new Donation({
         amount,
         donorName,
@@ -68,20 +63,20 @@ export const createDonation = async (req, res) => {
 
       await donation.save();
 
+      // Respond with donation details
       res.send({
         success: true,
         donorName,
-        qr_code: qrCodeUrl,
-        genericUPILink,
-        googlePayLink,
-        phonePeLink,
+        qr_code: qrCodeUrl, // Base64 encoded QR code
+        genericUPILink,     // UPI link for manual payment
+        upiId,              // UPI ID for manual entry
         donationId: donation._id,
         amount,
       });
     });
   } catch (error) {
     console.error('Error creating donation:', error);
-    res.status(500).send({ error: error.message });
+    res.status(500).send({ error: 'Server error while creating donation' });
   }
 };
 
