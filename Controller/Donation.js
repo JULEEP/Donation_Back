@@ -43,7 +43,7 @@ export const createDonation = async (req, res) => {
     }
 
     // Generate UPI link
-    const upiId = 'juleeperween@ybl';
+    const upiId = '8263895919@okbizaxis';
     const genericUPILink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(donorName)}&am=${amount}&cu=INR&tn=Donation+to+Trust`;
 
     // Generate QR Code for the UPI link
