@@ -488,25 +488,24 @@ export const generateInvoice = async (req, res) => {
 
     // Donor and Donation Information in columns with added space
     pdfDoc.fontSize(12).text(`Donor: ${donation.donorName}`, 50, 200);
-    pdfDoc.text(`Amount: ₹${donation.amount}`, 50, 220);
+    pdfDoc.text(`Amount: ${parseFloat(donation.amount).toFixed(2)}`, 50, 220);
     pdfDoc.text(`Donation Date: ${new Date(donation.donationDate).toLocaleDateString()}`, 50, 240);
 
     // Add a blue line after the donation details with space
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 270).lineTo(580, 270).stroke();  // Adjusted the Y-coordinate for the line
 
     pdfDoc.moveDown(2);
-    // Table Header with English text
+
+    // Updated Table Header (removed Spouse)
     pdfDoc.fontSize(12).text('S.No', 50, 280);
-    pdfDoc.text('Spouse', 150, 280);
-    pdfDoc.text('Amount', 250, 280);
+    pdfDoc.text('Amount', 150, 280);  // Changed 'Spouse' to 'Amount'
 
     // Add space below the header and line
     pdfDoc.moveDown(1); // Adds some vertical space between the line and the table rows
 
-    // Table Row (example)
+    // Updated Table Row (now displaying Amount instead of Spouse)
     pdfDoc.text('1', 50, 320);
-    pdfDoc.text(`Smt. ${donation.spouseName}`, 150, 320);
-    pdfDoc.text(`₹${donation.amount}`, 250, 320);
+    pdfDoc.text(`${parseFloat(donation.amount).toFixed(2)}`, 150, 320);  // Displaying the amount instead of spouse
 
     // Draw a blue line after the row
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 340).lineTo(580, 340).stroke();  // Line below row
@@ -520,7 +519,7 @@ export const generateInvoice = async (req, res) => {
 
     // Total and Payment Info
     pdfDoc.text('Total', 250, 380);
-    pdfDoc.text(`₹${donation.amount}`, 300, 380);
+    pdfDoc.text(`${donation.amount}`, 300, 380);
 
     pdfDoc.moveDown(2);
 
