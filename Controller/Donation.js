@@ -37,7 +37,7 @@ export const createDonation = async (req, res) => {
     }
 
     // UPI ID of the receiver
-    const upiId = '8263895919@okbizaxis';
+    const upiId = 'cybergarage3@okicici';
 
     // Generate the UPI link in the required format
     const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
