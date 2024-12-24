@@ -6,6 +6,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';  // Import dotenv package
 import Stripe from 'stripe';  // Import Stripe package
 import PDFDocument from 'pdfkit';
+import { fileURLToPath } from 'url';  // Import fileURLToPath to handle the __dirname replacement
 import fs from 'fs';
 import path from 'path';
 
@@ -402,6 +403,50 @@ export const getDonationDetails = async (req, res) => {
   }
 };
 
+function numberToWords(num) {
+  const ones = [
+      '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+  const tens = [
+      '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+  const thousands = [
+      '', 'Thousand', 'Million', 'Billion', 'Trillion'
+  ];
+
+  if (num === 0) return 'Zero';
+
+  let words = '';
+  let i = 0;
+
+  while (num > 0) {
+      if (num % 1000 !== 0) {
+          words = `${helper(num % 1000)} ${thousands[i]} ${words}`;
+      }
+      num = Math.floor(num / 1000);
+      i++;
+  }
+
+  return words.trim();
+}
+
+function helper(num) {
+  const ones = [
+      '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+  const tens = [
+      '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+
+  if (num === 0) return '';
+  if (num < 20) return ones[num];
+  if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 === 0 ? '' : `-${ones[num % 10]}`);
+  return ones[Math.floor(num / 100)] + ' Hundred ' + helper(num % 100);
+}
+
+
 export const generateInvoice = async (req, res) => {
   try {
     const { donationId } = req.params;
@@ -421,19 +466,20 @@ export const generateInvoice = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=donation_receipt_${donation.donorID}.pdf`);
     pdfDoc.pipe(res);
 
-    // Define the border and content area
-    const borderX = 30, borderY = 30, borderWidth = 550, borderHeight = 750;
-    pdfDoc.rect(borderX, borderY, borderWidth, borderHeight).stroke();
+    // Get the current directory path using import.meta.url
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
 
-    // Top-right date
+    // Add Image at the top of the PDF
+    const imagePath = path.join(__dirname, '..', 'config', 'half.jpeg'); // Update to the correct relative path
+    pdfDoc.image(imagePath, 30, 30, { width: 550 });  // Add image at coordinates (30, 30) with width 550px
+
+    // Top-left date
     const currentDate = new Date().toLocaleDateString();
-    pdfDoc.fontSize(10).text(`Date: ${currentDate}`, 450, 50); // Top-right corner
-    pdfDoc.fontSize(10).text('Reg. No. PON-4-10-2020', 500, 70);
+    pdfDoc.fontSize(10).text(`Date: ${currentDate}`, 450, 50);
 
-    // Header Section
-    pdfDoc.fontSize(16).text('श्री गोपाळ गणपती देवस्थान ट्रस्ट', 150, 100);
-    pdfDoc.fontSize(14).text('फर्मागुडी बांदिवडे फोंडा - गोवा', 200, 120);
-    pdfDoc.fontSize(12).text('Seva Receipt', 250, 160);  // Adjust the Y-coordinate for the text
+    // Move "Reg. No." to top-left side
+    pdfDoc.fontSize(10).text('Reg. No. PON-4-10-2020', 50, 50);  // Updated coordinates to move it left
 
     // Draw blue line under the header with added space
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 180).lineTo(580, 180).stroke();  // Adjusted Y-coordinate for the line
@@ -448,14 +494,11 @@ export const generateInvoice = async (req, res) => {
     // Add a blue line after the donation details with space
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 270).lineTo(580, 270).stroke();  // Adjusted the Y-coordinate for the line
 
-
     pdfDoc.moveDown(2);
-    // Table Header
+    // Table Header with English text
     pdfDoc.fontSize(12).text('S.No', 50, 280);
     pdfDoc.text('Spouse', 150, 280);
     pdfDoc.text('Amount', 250, 280);
-
-    // Draw the blue line below the header
 
     // Add space below the header and line
     pdfDoc.moveDown(1); // Adds some vertical space between the line and the table rows
@@ -468,12 +511,12 @@ export const generateInvoice = async (req, res) => {
     // Draw a blue line after the row
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 340).lineTo(580, 340).stroke();  // Line below row
 
-
     // Optionally, add more rows or adjust the positioning of the rows if needed.
     pdfDoc.moveDown(2); // Adds vertical space after the first row if more content follows
 
     // Amount in Words
-    pdfDoc.text(`Amount in Words: ${donation.amountInWords}`, 50, 350);
+    const amountInWords = numberToWords(donation.amount);  // Convert amount to words
+    pdfDoc.text(`Amount in Words: ${amountInWords}`, 50, 350);
 
     // Total and Payment Info
     pdfDoc.text('Total', 250, 380);
@@ -491,8 +534,6 @@ export const generateInvoice = async (req, res) => {
     // Draw the blue line below the Date and Donation Date
     pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 440).lineTo(580, 440).stroke();  // Line below the Date section
 
-
-
     pdfDoc.moveDown(2);
 
     // Final Message
@@ -506,6 +547,7 @@ export const generateInvoice = async (req, res) => {
     res.status(500).send({ error: 'Error generating receipt PDF.' });
   }
 };
+
 
 export const getDonationById = async (req, res) => {
   try {
