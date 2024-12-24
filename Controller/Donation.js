@@ -29,12 +29,6 @@ export const createDonation = async (req, res) => {
         });
       }
       amount = customAmount.toString();
-    } else {
-      // Validate predefined donation amounts
-      const validAmounts = ['50', '2', '1', '10', '20', '100', '200', '500'];
-      if (!validAmounts.includes(amount)) {
-        return res.status(400).send({ error: 'Invalid donation amount' });
-      }
     }
 
     // Validate donor name
