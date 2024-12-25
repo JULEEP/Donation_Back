@@ -22,7 +22,7 @@ export const createDonation = async (req, res) => {
     let { amount, donorName, phoneNumber, address, purpose } = req.body;
 
     // Validate purpose (enum)
-    const validPurposes = ['abhishek', 'donation', 'annadaan', 'jeernoddhar'];
+    const validPurposes = ['Abhishek', 'Donation', 'Annadaan', 'Jeernoddhar'];
     if (!purpose || !validPurposes.includes(purpose)) {
       return res.status(400).send({
         error: `Purpose is required and must be one of the following: ${validPurposes.join(', ')}`,
