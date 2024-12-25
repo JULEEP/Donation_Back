@@ -8,16 +8,17 @@ const donationSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    trim: true,
-    lowercase: true, // Convert email to lowercase
-    validate: {
-      validator: function (v) {
-        // Simple regex for validating email format
-        return /\S+@\S+\.\S+/.test(v);
-      },
-      message: props => `${props.value} is not a valid email!`,
-    },
   },
+  phoneNumber: {
+      type: String,
+    },
+    address: {
+      type: String,
+    },
+    purpose: {
+      type: String,
+      enum: ['Abhishek', 'Donation', 'Annadaan', 'Jeernoddhar'], // Limited to these options
+    },
   amount: {
     type: String,
     enum: [
@@ -76,6 +77,7 @@ const donationSchema = new mongoose.Schema({
   qrCodeUrl: {
     type: String,
   },
+  
 
 });
 

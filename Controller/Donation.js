@@ -19,7 +19,15 @@ const upiId = 'juleeperween@ybl';  // Your PhonePe or other UPI ID
 
 export const createDonation = async (req, res) => {
   try {
-    let { amount, donorName } = req.body;
+    let { amount, donorName, phoneNumber, address, purpose } = req.body;
+
+    // Validate purpose (enum)
+    const validPurposes = ['abhishek', 'donation', 'annadaan', 'jeernoddhar'];
+    if (!purpose || !validPurposes.includes(purpose)) {
+      return res.status(400).send({
+        error: `Purpose is required and must be one of the following: ${validPurposes.join(', ')}`,
+      });
+    }
 
     // Handle custom amounts
     if (amount === 'other') {
@@ -37,13 +45,24 @@ export const createDonation = async (req, res) => {
       return res.status(400).send({ error: 'Donor name is required' });
     }
 
+    // Validate phone number
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+      return res.status(400).send({ error: 'A valid 10-digit phone number is required' });
+    }
+
+    // Validate address
+    if (!address || address.trim().length === 0) {
+      return res.status(400).send({ error: 'Address is required' });
+    }
+
     // UPI ID of the receiver
     const upiId = 'cybergarage3@okicici';
 
     // Generate the UPI link in the required format
     const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
       donorName
-    )}&am=${amount}&cu=INR&tn=Donation+to+Trust`;
+    )}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Donation for ${purpose}`)}`;
 
     // Generate a QR Code for the UPI link
     QRCode.toDataURL(upiLink, async (err, qrCodeUrl) => {
@@ -55,6 +74,9 @@ export const createDonation = async (req, res) => {
       const donation = new Donation({
         amount,
         donorName,
+        phoneNumber,
+        address,
+        purpose,
         upiLink,
         qrCodeUrl,
         status: 'pending',
@@ -66,6 +88,9 @@ export const createDonation = async (req, res) => {
       res.send({
         success: true,
         donorName,
+        phoneNumber,
+        address,
+        purpose,
         qr_code: qrCodeUrl, // Base64 encoded QR code
         genericUPILink: upiLink, // UPI link for manual payment
         upiId, // UPI ID for manual entry
@@ -472,74 +497,77 @@ export const generateInvoice = async (req, res) => {
 
     // Add Image at the top of the PDF
     const imagePath = path.join(__dirname, '..', 'config', 'half.jpeg'); // Update to the correct relative path
-    pdfDoc.image(imagePath, 30, 30, { width: 550 });  // Add image at coordinates (30, 30) with width 550px
+    pdfDoc.image(imagePath, 30, 30, { width: 550 });
 
     // Top-left date
     const currentDate = new Date().toLocaleDateString();
     pdfDoc.fontSize(10).text(`Date: ${currentDate}`, 450, 50);
 
     // Move "Reg. No." to top-left side
-    pdfDoc.fontSize(10).text('Reg. No. PON-4-10-2020', 50, 50);  // Updated coordinates to move it left
+    pdfDoc.fontSize(10).text('Reg. No. PON-4-10-2020', 50, 50);
 
     // Draw blue line under the header with added space
-    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 180).lineTo(580, 180).stroke();  // Adjusted Y-coordinate for the line
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 180).lineTo(580, 180).stroke();
 
     pdfDoc.moveDown(2);
 
-    // Donor and Donation Information in columns with added space
+    // Donor and Donation Information
     pdfDoc.fontSize(12).text(`Donor: ${donation.donorName}`, 50, 200);
     pdfDoc.text(`Amount: ${parseFloat(donation.amount).toFixed(2)}`, 50, 220);
     pdfDoc.text(`Donation Date: ${new Date(donation.donationDate).toLocaleDateString()}`, 50, 240);
 
     // Add a blue line after the donation details with space
-    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 270).lineTo(580, 270).stroke();  // Adjusted the Y-coordinate for the line
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 300).lineTo(580, 300).stroke();
 
     pdfDoc.moveDown(2);
 
-    // Updated Table Header (removed Spouse)
-    pdfDoc.fontSize(12).text('S.No', 50, 280);
-    pdfDoc.text('Amount', 150, 280);  // Changed 'Spouse' to 'Amount'
+    // Updated Table Header
+    pdfDoc.fontSize(12).text('S.No', 50, 310);
+    pdfDoc.text('Donation Type', 150, 310); // Moved Donation Type before Amount
+    pdfDoc.text('Amount', 300, 310);
 
     // Add space below the header and line
-    pdfDoc.moveDown(1); // Adds some vertical space between the line and the table rows
+    pdfDoc.moveDown(1);
 
-    // Updated Table Row (now displaying Amount instead of Spouse)
-    pdfDoc.text('1', 50, 320);
-    pdfDoc.text(`${parseFloat(donation.amount).toFixed(2)}`, 150, 320);  // Displaying the amount instead of spouse
+    // Updated Table Row
+    pdfDoc.text('1', 50, 340);
+    pdfDoc.text(`${donation.purpose || 'N/A'}`, 150, 340); // Display Donation Type
+    pdfDoc.text(`${parseFloat(donation.amount).toFixed(2)}`, 300, 340);
 
     // Draw a blue line after the row
-    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 340).lineTo(580, 340).stroke();  // Line below row
-
-    // Optionally, add more rows or adjust the positioning of the rows if needed.
-    pdfDoc.moveDown(2); // Adds vertical space after the first row if more content follows
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 360).lineTo(580, 360).stroke();
 
     // Amount in Words
-    const amountInWords = numberToWords(donation.amount);  // Convert amount to words
-    pdfDoc.text(`Amount in Words: ${amountInWords}`, 50, 350);
+    const amountInWords = numberToWords(donation.amount); // Convert amount to words
+    pdfDoc.text(`Amount in Words: ${amountInWords}`, 50, 370);
 
     // Total and Payment Info
-    pdfDoc.text('Total', 250, 380);
-    pdfDoc.text(`${donation.amount}`, 300, 380);
+    pdfDoc.text('Total', 250, 400);
+    pdfDoc.text(`${donation.amount}`, 300, 400);
 
     pdfDoc.moveDown(2);
 
-    pdfDoc.text('Payment Method:', 50, 420);
-    pdfDoc.text(donation.paymentMethod, 150, 420);
+    pdfDoc.text('Payment Method:', 50, 440);
+    pdfDoc.text(donation.paymentMethod, 150, 440);
 
     // Donation Date
-    pdfDoc.text('Date:', 250, 420);
-    pdfDoc.text(new Date(donation.donationDate).toLocaleDateString(), 300, 420);
+    pdfDoc.text('Date:', 250, 440);
+    pdfDoc.text(new Date(donation.donationDate).toLocaleDateString(), 300, 440);
 
     // Draw the blue line below the Date and Donation Date
-    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 440).lineTo(580, 440).stroke();  // Line below the Date section
+    pdfDoc.lineWidth(1).strokeColor('#1E90FF').moveTo(32, 460).lineTo(580, 460).stroke();
 
     pdfDoc.moveDown(2);
 
+    // Address Section
+    const address = donation.address || 'No address provided'; // Default address if none is provided
+    pdfDoc.fontSize(10).text(`Address: ${address}`, 50, 480);
+
     // Final Message
-    pdfDoc.fontSize(10).text('Thank you for your generous contribution!', { align: 'center' });
+    pdfDoc.moveDown(1); // Add space above the message
+    pdfDoc.fontSize(10).text('Thank you for your generous contribution!', 350, pdfDoc.y, { align: 'left' });
 
     // Final blue line at the bottom of the PDF
-
     pdfDoc.end();
   } catch (error) {
     console.error('Error generating receipt PDF:', error);
